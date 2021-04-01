@@ -1,0 +1,84 @@
+1、 运行环境：jetson nano开发板上的QT。
+2、 程序开发包文件：CameraMonitor
+3、 运行程序之前
+（1）装QTcreator软件：
+sudo apt-get install qt5-default qtcreator qtmultimedia5-dev
+sudo apt-get install qtmultimedia5-dev
+    （2） 装ffmpeg
+sudo apt-get install ffmpeg
+    （3） 文件依赖库路径：
+INCLUDEPATH += /usr/include/opencv4
+
+4、 实现jetson nano开机自启动程序：
+（1）在mainwindow.cpp文件加上以下代码实现程序运行自启动。
+	on_btnStartStop_clicked()
+（2）在QT工程项目 CameraMonitor.Pro文件末尾加QMAKE_LFLAGS += -no-pie ,编译生成文件：build-CameraMonitor-Desktop-Debug，其中CameraMointor即可执行文件。
+5、 .在jetson终端中执行：gnome-session-properties，会弹出一个“启动应用程序首选项”的菜单，然后点击添加要开机自启动的程序（可执行文件CameraMointor）或脚本的名称和位置就可以了，关闭开机登录和显示器休眠，重启就自动启动这个程序了。
+mainwindow.cpp  23   delete Start
+on_btnStartStop_clicked()
+
+6、分段存储方法：
+（1）在videoprocess.cpp文件下加入头文件：
+#include <chrono>
+#include <stdint.h>
+（2）修改代码
+·1.获取当前时间
+void VideoProcess::run()
+{
+
+    //ADD 20201220
+    std::chrono::steady_clock::time_point record_start_time = std::chrono::steady_clock::now();
+    const int RECORD_TIME_INTERVAL = 10; // record video into file per hour
+
+
+    Mat frame,rgbImageFrame;
+    //--- GRAB AND WRITE LOOP
+    while (m_RunFlag)
+    {
+        // check if we succeeded
+        if (!m_VideoCapture->read(frame)) {
+            qDebug() << "ERROR! blank frame grabbed\n";
+        }
+#if 1
+        //contex change Detection
+        if(VideoChangeDetection(frame) == true)
+        {
+            if(m_RecoderRun == false)
+            {
+                //start recoder
+                QString filename = m_VideoDir + "/" +QDateTime::currentDateTime().toString("yyyy-MM-dd_hh-mm-ss") + ".avi";
+                emit sigRecoderMsg(filename + "...");
+                VideoFileOpen(filename.toStdString(),m_VideoCapture->get(CAP_PROP_FPS),frame);
+                record_start_time = std::chrono::steady_clock::now();
+            }
+            VideoFileWrite(frame);
+
+
+            //ADD 20201220
+
+            std::chrono::duration<double> record_duration = std::chrono::steady_clock::now() - record_start_time;
+            if((int)record_duration.count() > RECORD_TIME_INTERVAL)
+            {
+                VideoFileClose();
+            }
+        }
+#endif
+
+ ·2.定时器
+//QTimer就是一个定时器额，每隔一段时间（单位是毫秒）就会干某项工作。典型的用法如下：
+QTimer *timer = new QTimer(this);
+connect(timer, SIGNAL(timeout()), this, SLOT(on_btnStartStop_clicked())); // ***就是你所说的响应函数
+timer->start(10000); // 每隔10s
+
+7.获取视频帧率
+videoprocess.cpp  67
+m_VideoCapture->set(CAP_PROP_FPS,30.0);
+m_VideoCapture->set(CAP_PROP_FRAME_WIDTH,1920);
+m_VideoCapture->set(CAP_PROP_FRAME_HEIGHT,1080);
+//关闭动态检测
+videoprocess.cpp  bool 
+{
+	return ture;
+}
+
+
